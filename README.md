@@ -62,15 +62,16 @@ start();
 
 # constructor(db, channel, [options])
 
-`options.trigger_delay`
-`options.keyfield`
+`options.trigger_delay` (default 200ms): passed through to PgTableObserver.
+`options.keyfield` (default \_id): field to use as a unique keyfield to determine the differences.
+`options.initial_cached` (default true): If a query is already being observed with the same `query/params` combination, if will use the cached rows as the initial rows (e.g. with `handle.getRows()`). If your `triggers` are correctly defined this should be fine. Turn this option off to load fresh rows from the database for the initial dataset to be sure they are up to date.
 
 # let handle = async notify(query, params, triggers, callback)
 
 ## parameters
 
 `params`: The parameters to the query, following `pg-promise`. Single values will be `$1`. Array elements will be
-`$1`..`$n`. Object properties will be `$*property*` where `**` is one of `()`, `[]`, `{}` or `//`. 
+`$1`..`$n`. Object properties will be `$*property*` where `**` is one of `()`, `[]`, `{}` or `//`.
 
 ## return value
 

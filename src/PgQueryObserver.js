@@ -15,6 +15,9 @@ class PgQueryObserver {
     this.channel = channel;
 
     this.options = options;
+
+    if(options.initial_cached === undefined) options.initial_cached = true;
+
     // options.trigger_delay -> passed to PgTableObserver (default there is 200ms)
     // options.keyfield -> passed to rowsDiff and refreshQuery (default there is _id)
 
@@ -274,13 +277,20 @@ class Subscriber {
 
     this.rows = undefined;
     this.tiggered = false;
+
+    this.options = query_info.options;
   }
 
   async init() {
     // Initial Rows
 
-    if(!this.query_info.rows) {
+    if(!this.query_info.rows || !this.options.initial_cached) {
       await this.query_info.fetch();
+    }
+    else {
+      // trigger update next time a change happens, just to be sure
+      this.triggered = true;
+      this.query_info.triggered = true;
     }
 
     this.rows = this.query_info.rows;
