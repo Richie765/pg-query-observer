@@ -13,7 +13,7 @@ async function start() {
   try {
     let db = await pgp(connection);
 
-    let query_observer = new PgQueryObserver(db, 'myappx');
+    let query_observer = new PgQueryObserver(db, 'myappx', { keyfield: 'id' });
 
     async function cleanup_and_exit() {
       await query_observer.cleanup();
@@ -26,7 +26,7 @@ async function start() {
 
     // Show notifications
 
-    let query = 'SELECT id AS _id, * FROM test';
+    let query = 'SELECT * FROM test';
     let params = [];
 
     function triggers(change) {

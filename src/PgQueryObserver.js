@@ -13,15 +13,18 @@ class PgQueryObserver {
   constructor(db, channel, options = {}) {
     this.db = db;
     this.channel = channel;
+
     this.options = options;
+    // options.trigger_delay -> passed to PgTableObserver (default there is 200ms)
+    // options.keyfield -> passed to PgTableObserver and rowsDiff (default there is _id)
 
-    this.table_observer = new PgTableObserver(db, channel);
+    this.table_observer = new PgTableObserver(db, channel, {
+      trigger_delay: options.trigger_delay,
+      keyfield: options.keyfield,
+      reduce_triggers: false,
+    });
+
     this.query_infos = {};
-
-    // TODO Handle default options
-    // TODO add option 'keyfield'
-
-    // if(options.trigger_delay === undefined) options.trigger_delay = 200;
   }
 
   // Public Methods
@@ -107,7 +110,7 @@ class QueryInfo {
 
     this.query = query;
     this.params = params;
-    this.refresh_query = refreshQuery(query, params.length + 1);
+    this.refresh_query = refreshQuery(query, params.length + 1, this.options.keyfield);
 
     this.hash = hash;
 
@@ -142,12 +145,7 @@ class QueryInfo {
       return this.triggered;
     };
 
-    let options = {
-      trigger_delay: this.options.trigger_delay,
-      reduce_triggers: false,
-    };
-
-    this.notifier = await this.table_observer.trigger(tables, any_trigger, () => this.refresh(), options);
+    this.notifier = await this.table_observer.trigger(tables, any_trigger, () => this.refresh());
   }
 
   async fetch() {
@@ -195,7 +193,8 @@ class QueryInfo {
           let new_rows = this.rows;
 
           let diff = rowsDiff(old_rows, new_rows, {
-            equalFunc(old_row, new_row) { return old_row._hash === new_row._hash }
+            equalFunc(old_row, new_row) { return old_row._hash === new_row._hash },
+            keyfield: this.options.keyfield
           });
 
           subscriber.rows = new_rows;
@@ -268,14 +267,12 @@ class Subscriber {
 // Helpers
 //
 
-function refreshQuery(query, hashParam) {
+function refreshQuery(query, hash_param, keyfield = '_id') {
+  // query: original query string
+  // hash_param: index into params of hashes which we already have (params.length + 1)
+  // keyfield: name of the unique keyfield, defaults to _id
+
   return `
-    /*
-     * Template for refreshing a result set, only returning unknown rows
-     * Accepts 2 arguments:
-     * query: original query string
-     * hashParam: count of params in original query + 1
-     */
     WITH
       res AS (${query}),
       data AS (
@@ -286,11 +283,11 @@ function refreshQuery(query, hashParam) {
       data2 AS (
         SELECT data.*
         FROM data
-        WHERE NOT (_hash = ANY ($${hashParam}))
+        WHERE NOT (_hash = ANY ($${hash_param}))
       )
-    SELECT data2.*, data._id AS _id, data._hash AS _hash
+    SELECT data2.*, data.${keyfield} AS ${keyfield}, data._hash AS _hash
     FROM data
-    LEFT JOIN data2 USING(_id)
+    LEFT JOIN data2 USING(${keyfield})
   `;
 }
 
