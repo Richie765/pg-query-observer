@@ -16,12 +16,12 @@ class PgQueryObserver {
 
     this.options = options;
     // options.trigger_delay -> passed to PgTableObserver (default there is 200ms)
-    // options.keyfield -> passed to PgTableObserver and rowsDiff (default there is _id)
+    // options.keyfield -> passed to rowsDiff and refreshQuery (default there is _id)
 
     this.table_observer = new PgTableObserver(db, channel, {
       trigger_delay: options.trigger_delay,
-      keyfield: options.keyfield,
-      reduce_triggers: false,
+      reduce_triggers: false, // need to know which subscribers trigger
+      trigger_first: false, // callback is relatively costly
     });
 
     this.query_infos = {};
