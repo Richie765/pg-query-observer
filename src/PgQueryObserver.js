@@ -75,7 +75,7 @@ class PgQueryObserver {
       },
 
       getRows() {
-        return subscriber.rows;
+        return omitHash(subscriber.rows);
       }
     };
   }
@@ -229,6 +229,9 @@ class QueryInfo {
           subscriber.rows = new_rows;
 
           if(diff) {
+            if(diff.added) diff.added = omitHash(diff.added);
+            if(diff.changed) diff.changed = omitHash(diff.changed);
+
             subscriber.callback(diff);
           }
         }
@@ -319,6 +322,10 @@ function refreshQuery(query, hash_field, keyfield = '_id') {
     FROM data
     LEFT JOIN data2 USING(${keyfield})
   `;
+}
+
+function omitHash(array) {
+  return array.map(row => _.omit(row, '___hash'));
 }
 
 export default PgQueryObserver;
