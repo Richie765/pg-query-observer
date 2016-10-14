@@ -291,7 +291,13 @@ class Subscriber {
   }
 
   async refresh() {
-
+    if(!this.triggered) {
+      this.triggered = true;
+      if(!this.query_info.triggered) {
+        this.query_info.triggered = true;
+        await this.query_info.refresh();
+      }
+    }
   }
 }
 
