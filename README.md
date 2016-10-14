@@ -67,6 +67,13 @@ start();
 
 # let handle = async notify(query, params, triggers, callback)
 
+## parameters
+
+`params`: The parameters to the query, following `pg-promise`. Single values will be `$1`. Array elements will be
+`$1`..`$n`. Object properties will be `$*property*` where `**` is one of `()`, `[]`, `{}` or `//`. 
+
+## return value
+
 `async handle.stop()`
 
 `async handle.refresh()`

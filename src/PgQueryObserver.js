@@ -35,8 +35,7 @@ class PgQueryObserver {
     if(typeof query !== 'string')
       throw new TypeError('Query string missing');
 
-    if(!Array.isArray(params))
-      throw new TypeError('Params array missing');
+    // params can be almost any type including undefined
 
     if(typeof triggers !== 'function')
       throw new TypeError('Triggers function missing');
@@ -109,8 +108,26 @@ class QueryInfo {
     this.options = query_observer.options;
 
     this.query = query;
+
+    let hash_field;
+
+    if(params === undefined) {
+      hash_field = '1';
+      params = [];
+    }
+    else if(Array.isArray(params)) {
+      hash_field = params.length + 1;
+    }
+    else if(typeof params === 'object') {
+      hash_field = '{___hashes}';
+    }
+    else {
+      hash_field = '2';
+      params = [ params ];
+    }
     this.params = params;
-    this.refresh_query = refreshQuery(query, params.length + 1, this.options.keyfield);
+
+    this.refresh_query = refreshQuery(query, hash_field, this.options.keyfield);
 
     this.hash = hash;
 
@@ -155,20 +172,32 @@ class QueryInfo {
     let hashes = [];
 
     if(this.rows) {
-      this.rows.forEach(row => hashmap[row._hash] = row);
-      hashes = this.rows.map(row => row._hash);
+      this.rows.forEach(row => hashmap[row.___hash] = row);
+      hashes = this.rows.map(row => row.___hash);
     }
     else {
       hashes = ['x']; // for some reason cannot be an empty array
     }
 
+    // Prepare params
+
+    let params;
+
+    if(Array.isArray(this.params)) {
+      params = this.params.concat([ hashes ]);
+    }
+    else {
+      params = this.params;
+      params.___hashes = hashes;
+    }
+
     // Get new rows
 
-    let rows = await this.db.any(this.refresh_query, this.params.concat([ hashes ]));
+    let rows = await this.db.any(this.refresh_query, params);
 
     // Reconstruct existing rows
 
-    rows = rows.map(row => row._hash in hashmap ? hashmap[row._hash] : row );
+    rows = rows.map(row => row.___hash in hashmap ? hashmap[row.___hash] : row );
 
     this.rows = rows;
   }
@@ -193,7 +222,7 @@ class QueryInfo {
           let new_rows = this.rows;
 
           let diff = rowsDiff(old_rows, new_rows, {
-            equalFunc(old_row, new_row) { return old_row._hash === new_row._hash },
+            equalFunc(old_row, new_row) { return old_row.___hash === new_row.___hash },
             keyfield: this.options.keyfield
           });
 
@@ -267,25 +296,26 @@ class Subscriber {
 // Helpers
 //
 
-function refreshQuery(query, hash_param, keyfield = '_id') {
+function refreshQuery(query, hash_field, keyfield = '_id') {
   // query: original query string
-  // hash_param: index into params of hashes which we already have (params.length + 1)
+  // hash_field: index into params of hashes which we already have (params.length + 1)
   // keyfield: name of the unique keyfield, defaults to _id
 
   return `
     WITH
-      res AS (${query}),
+      res AS (
+        ${query}
+      ),
       data AS (
-        SELECT res.*,
-          MD5(CAST(ROW_TO_JSON(res.*) AS TEXT)) AS _hash
+        SELECT res.*, MD5(CAST(ROW_TO_JSON(res.*) AS TEXT)) AS ___hash
         FROM res
       ),
       data2 AS (
         SELECT data.*
         FROM data
-        WHERE NOT (_hash = ANY ($${hash_param}))
+        WHERE NOT (___hash = ANY ($${hash_field}))
       )
-    SELECT data2.*, data.${keyfield} AS ${keyfield}, data._hash AS _hash
+    SELECT data2.*, data.${keyfield} AS ${keyfield}, data.___hash AS ___hash
     FROM data
     LEFT JOIN data2 USING(${keyfield})
   `;

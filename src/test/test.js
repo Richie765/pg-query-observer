@@ -26,8 +26,12 @@ async function start() {
 
     // Show notifications
 
-    let query = 'SELECT * FROM test';
-    let params = [];
+    let query = `
+      SELECT *
+      FROM test
+      WHERE id < $[id]
+    `;
+    let params = { id: 3 };
 
     function triggers(change) {
       console.log("triggers", change);
