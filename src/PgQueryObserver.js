@@ -5,6 +5,10 @@ import PgTableObserver from '../../pg-table-observer/';
 import rowsDiff from '../../rows-diff/';
 import tablesUsed from '../../pg-analyze/';
 
+//
+// PgQueryObserver
+//
+
 class PgQueryObserver {
   constructor(db, channel, options = {}) {
     this.db = db;
@@ -12,9 +16,10 @@ class PgQueryObserver {
     this.options = options;
 
     this.table_observer = new PgTableObserver(db, channel);
-    this.query_infos = {}; // hash => { query, params, notifier, subscribers{ trigger, callback  } }
+    this.query_infos = {};
 
-    // Handle default options
+    // TODO Handle default options
+    // TODO add option 'keyfield'
 
     // if(options.trigger_delay === undefined) options.trigger_delay = 200;
   }
@@ -36,200 +41,232 @@ class PgQueryObserver {
     if(typeof callback !== 'function')
       throw new TypeError('Callback function missing');
 
-    // Find or create query_info
+    // Create or find query_info
 
-    let query_info = await this._getQueryInfo(query, params);
+    let hash = murmur3(JSON.stringify([ query, params ]));
 
-    // Get initial resultset
-    // NOTE maybe has to be sooner in case it fails?
+    let query_info;
 
-    if(!query_info.rows) {
-      await query_info._fetch();
-      // TODO issue refresh
+    if(hash in this.query_infos) {
+      query_info = this.query_infos[hash];
+    }
+    else {
+      query_info = new QueryInfo(this, query, params, hash);
+      await query_info.init();
+      this.query_infos[hash] = query_info;
     }
 
-    let rows = query_info.rows;
+    // Create subscriber
 
-    // Add subscriber
-
-    let subscriber_key = `_${query_info.nextid}`;
-    query_info.nextid++;
-
-    query_info.subscribers[subscriber_key] = {
-      rows,
-      triggers,
-      callback,
-
-      triggered: false,
-    };
-
-    query_info.subscriber_count++;
+    let subscriber = new Subscriber(query_info, triggers, callback);
+    await subscriber.init();
 
     // Return result handle
 
     return {
-      rows,
-
       async stop() {
-        // Remove subscriber
-
-        delete query_info.subscribers[subscriber_key];
-        query_info.subscriber_count--;
-
-        // No subscribers left? Cleanup query_info
-
-        if(query_info.subscriber_count === 0) {
-          await query_info.stop();
-        }
+        await query_info.removeSubscriber(subscriber);
       },
 
       async refresh() {
-        await query_info.refresh();
+        await subscriber.refresh();
+      },
+
+      getRows() {
+        return subscriber.rows;
       }
     };
   }
 
   async cleanup() {
-    this.table_observer.cleanup();
+    let keys = Object.keys(this.query_infos);
+
+    let promises = keys.map(async key => {
+      await this.query_infos[key].stop();
+    });
+
+    await Promise.all(promises);
+
+    await this.table_observer.cleanup();
+  }
+}
+
+
+//
+// QueryInfo
+//
+
+class QueryInfo {
+  constructor(query_observer, query, params, hash) {
+    // Set basic fields
+
+    this.query_observer = query_observer;
+    this.db = query_observer.db;
+    this.table_observer = query_observer.table_observer;
+    this.options = query_observer.options;
+
+    this.query = query;
+    this.params = params;
+    this.refresh_query = refreshQuery(query, params.length + 1);
+
+    this.hash = hash;
+
+    this.notifier = undefined;
+    this.triggered = false;
+
+    this.subscribers = [];
+
+    this.rows = undefined;
   }
 
-  async _getQueryInfo(query, params) {
-    // Create query hash
+  async init() {
+    // Init notifier
 
-    let hash = murmur3(JSON.stringify([ query, params ]));
+    let tables = await tablesUsed(this.db, this.query, this.params);
 
-    // Return if we already have query_info
-
-    if(this.query_infos[hash]) return this.query_infos[hash];
-
-    // Trigger function for table_observer
-
-    let query_info; // Will be set later
-
-    // Create notifier for tables used in query
-
-    let db = this.db;
-
-    let tables = await tablesUsed(db, query, params);
-
-    function any_trigger(change) {
+    let any_trigger = (change) => {
       // Triggers if any of the subscriber's triggers trigger
       // Keep record of subscribers that triggered
 
-      let subscribers = query_info.subscribers;
-      let keys = Object.keys(subscribers);
+      let subscribers = this.subscribers;
 
-      keys.forEach(key => {
-        let subscriber = subscribers[key];
-
+      subscribers.forEach(subscriber => {
         if(!subscriber.triggered) {
           if(subscriber.triggers(change)) {
             subscriber.triggered = true;
-            query_info.triggered = true;
+            this.triggered = true;
           }
         }
       });
 
-      return query_info.triggered;
-    }
-
-    function refresh() {
-      console.log("refresh");
-      query_info.refresh();
-    }
+      return this.triggered;
+    };
 
     let options = {
       trigger_delay: this.options.trigger_delay,
       reduce_triggers: false,
     };
 
-    let notifier = await this.table_observer.trigger(tables, any_trigger, refresh, options);
+    this.notifier = await this.table_observer.trigger(tables, any_trigger, () => this.refresh(), options);
+  }
 
-    // Create refresh_query
+  async fetch() {
+    // Create hashmap and collect hashes
 
-    let refresh_query = refreshQuery(query, params.length + 1);
+    let hashmap = {};
+    let hashes = [];
 
-    // Build queryinfo
+    if(this.rows) {
+      this.rows.forEach(row => hashmap[row._hash] = row);
+      hashes = this.rows.map(row => row._hash);
+    }
+    else {
+      hashes = ['x']; // for some reason cannot be an empty array
+    }
 
-    let _this = this;
+    // Get new rows
 
-    query_info = {
-      rows: undefined,
-      old_hashes: undefined,
+    let rows = await this.db.any(this.refresh_query, this.params.concat([ hashes ]));
 
-      nextid: 1,
-      subscriber_count: 0,
-      subscribers: {},
+    // Reconstruct existing rows
 
-      async _fetch() {
-        // Create hashmap and collect hashes
+    rows = rows.map(row => row._hash in hashmap ? hashmap[row._hash] : row );
 
-        let hashmap = {};
-        let hashes = ['x'];
+    this.rows = rows;
+  }
 
-        if(this.rows) {
-          this.rows.forEach(row => hashmap[row._hash] = row);
-          hashes = this.rows.map(row => row._hash);
-        }
+  async refresh() {
+    if(this.triggered) {
+      this.triggered = false;
 
-        // Get new rows
+      // Get new rows
 
-        let rows = await _this.db.any(refresh_query, params.concat([ hashes ]));
+      await this.fetch();
 
-        // Reconstruct existing rows
+      // Iterate subscribers
 
-        rows = rows.map(row => row._hash in hashmap ? hashmap[row._hash] : row );
+      this.subscribers.forEach(subscriber => {
+        if(subscriber.triggered) {
+          subscriber.triggered = false;
 
-        this.rows = rows;
-      },
+          // Determine diff
 
-      async refresh() {
-        if(this.triggered) {
-          await this._fetch();
-          this.triggered = false;
+          let old_rows = subscriber.rows;
+          let new_rows = this.rows;
 
-          let keys = Object.keys(this.subscribers);
-
-          keys.forEach(key => {
-            let subscriber = this.subscribers[key];
-
-            if(subscriber.triggered) {
-              subscriber.triggered = false;
-
-              let old_rows = subscriber.rows;
-              let new_rows = this.rows;
-
-              let diff = rowsDiff(old_rows, new_rows, {
-                equalFunc(old_row, new_row) { return old_row._hash === new_row._hash }
-              });
-
-              subscriber.rows = new_rows;
-
-              if(diff) {
-                subscriber.callback(diff);
-              }
-            }
+          let diff = rowsDiff(old_rows, new_rows, {
+            equalFunc(old_row, new_row) { return old_row._hash === new_row._hash }
           });
+
+          subscriber.rows = new_rows;
+
+          if(diff) {
+            subscriber.callback(diff);
+          }
         }
-      },
+      });
+    }
+  }
 
-      async stop() {
-        await notifier.stop();
-        delete _this.query_infos[hash];
-      },
-    };
+  async stop() {
+    await this.notifier.stop();
+    delete this.query_observer.query_infos[this.hash];
+    this.query_observer = undefined;
+  }
 
-    this.query_infos[hash] = query_info;
+  addSubscriber(subscriber) {
+    this.subscribers.push(subscriber);
+  }
 
-    return query_info;
+  async removeSubscriber(subscriber) {
+    let index = this.subscribers.indexOf(subscriber);
+    if(index === -1) throw new Error('Subscriber not found');
+    subscribers.splice(index, 1);
+
+    subscriber.query_info = undefined;
+
+    if(!subscribers.length) {
+      await this.stop();
+    }
   }
 }
 
+//
+// Subscriber
+//
 
+class Subscriber {
+  constructor(query_info, triggers, callback) {
+    this.query_info = query_info;
+    this.triggers = triggers;
+    this.callback = callback;
 
+    this.rows = undefined;
+    this.tiggered = false;
+  }
 
+  async init() {
+    // Initial Rows
 
+    if(!this.query_info.rows) {
+      await this.query_info.fetch();
+    }
 
+    this.rows = this.query_info.rows;
+
+    // Add subscriber to query_info
+
+    this.query_info.addSubscriber(this);
+  }
+
+  async refresh() {
+
+  }
+}
+
+//
+// Helpers
+//
 
 function refreshQuery(query, hashParam) {
   return `

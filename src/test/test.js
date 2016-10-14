@@ -38,7 +38,7 @@ async function start() {
       console.log(diff);
     });
 
-    console.log("initial rows", handle.rows);
+    console.log("initial rows", handle.getRows());
 
     // ... when finished observing the query
 
