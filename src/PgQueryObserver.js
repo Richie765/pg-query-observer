@@ -1,9 +1,9 @@
 import { murmur3 } from 'murmurhash-js';
 import _ from 'lodash';
 
-import PgTableObserver from '../../pg-table-observer/';
-import rowsDiff from '../../rows-diff/';
-import tablesUsed from '../../pg-analyze/';
+import PgTableObserver from 'pg-table-observer';
+import rowsDiff from 'rows-diff';
+import tablesUsed from 'pg-analyze';
 
 //
 // PgQueryObserver

@@ -17,7 +17,7 @@ async function start() {
 
     async function cleanupAndExit() {
       await query_observer.cleanup();
-      await pgp.end();
+      pgp.end();
       process.exit();
     }
 
