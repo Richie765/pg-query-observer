@@ -21,11 +21,7 @@ class PgQueryObserver {
     // options.trigger_delay -> passed to PgTableObserver (default there is 200ms)
     // options.keyfield -> passed to rowsDiff and refreshQuery (default there is _id)
 
-    this.table_observer = new PgTableObserver(db, channel, {
-      trigger_delay: options.trigger_delay,
-      reduce_triggers: false, // need to know which subscribers trigger
-      trigger_first: false, // callback is relatively costly
-    });
+    this.table_observer = new PgTableObserver(db, channel);
 
     this.query_infos = {};
   }
@@ -165,7 +161,13 @@ class QueryInfo {
       return this.triggered;
     };
 
-    this.notifier = await this.table_observer.trigger(tables, any_trigger, () => this.refresh());
+    let options = {
+      trigger_delay: this.options.trigger_delay,
+      reduce_triggers: false, // need to know which subscribers trigger
+      trigger_first: false, // callback is relatively costly
+    };
+
+    this.notifier = await this.table_observer.trigger(tables, any_trigger, () => this.refresh(), options);
   }
 
   async fetch() {

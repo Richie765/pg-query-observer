@@ -15,14 +15,14 @@ async function start() {
 
     let query_observer = new PgQueryObserver(db, 'myappx', { keyfield: 'id' });
 
-    async function cleanup_and_exit() {
+    async function cleanupAndExit() {
       await query_observer.cleanup();
       await pgp.end();
       process.exit();
     }
 
-    process.on('SIGTERM', cleanup_and_exit);
-    process.on('SIGINT', cleanup_and_exit);
+    process.on('SIGTERM', cleanupAndExit);
+    process.on('SIGINT', cleanupAndExit);
 
     // Show notifications
 
