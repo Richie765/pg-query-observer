@@ -257,11 +257,11 @@ class QueryInfo {
   async removeSubscriber(subscriber) {
     let index = this.subscribers.indexOf(subscriber);
     if(index === -1) throw new Error('Subscriber not found');
-    subscribers.splice(index, 1);
+    this.subscribers.splice(index, 1);
 
     subscriber.query_info = undefined;
 
-    if(!subscribers.length) {
+    if(!this.subscribers.length) {
       await this.stop();
     }
   }
