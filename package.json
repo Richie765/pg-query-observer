@@ -4,7 +4,10 @@
   "description": "Observe PostgreSQL queries for changes",
   "main": "dist/PgQueryObserver.js",
   "dependencies": {
+    "pg-analyze": "0.0.1",
     "pg-promise": "^5.2.0",
+    "pg-table-observer": "0.0.2",
+    "rows-diff": "0.0.1",
     "source-map-support": "0.4.2"
   },
   "devDependencies": {
