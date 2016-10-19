@@ -4,6 +4,7 @@
   "description": "Observe PostgreSQL queries for changes",
   "main": "dist/PgQueryObserver.js",
   "dependencies": {
+    "murmurhash-js": "^1.0.0",
     "pg-analyze": "0.0.1",
     "pg-promise": "^5.2.0",
     "pg-table-observer": "0.0.2",
