@@ -5,10 +5,10 @@
   "main": "dist/PgQueryObserver.js",
   "dependencies": {
     "murmurhash-js": "^1.0.0",
-    "pg-analyze": "0.0.1",
+    "pg-analyze": "^1.0.0",
     "pg-promise": "^5.2.0",
-    "pg-table-observer": "0.0.2",
-    "rows-diff": "0.0.1",
+    "pg-table-observer": "^1.0.0",
+    "rows-diff": "^1.0.0",
     "source-map-support": "0.4.2"
   },
   "devDependencies": {
