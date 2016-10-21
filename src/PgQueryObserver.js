@@ -176,12 +176,9 @@ class QueryInfo {
     let hashmap = {};
     let hashes = [];
 
-    if(this.rows) {
+    if(this.rows && this.rows.length) {
       this.rows.forEach(row => hashmap[row.___hash] = row);
       hashes = this.rows.map(row => row.___hash);
-    }
-    else {
-      hashes = ['x']; // for some reason cannot be an empty array
     }
 
     // Prepare params
@@ -334,7 +331,7 @@ function refreshQuery(query, hash_field, keyfield = '_id') {
       data2 AS (
         SELECT data.*
         FROM data
-        WHERE NOT (___hash = ANY ($${hash_field}))
+        WHERE NOT (___hash = ANY ($${hash_field}::varchar[]))
       )
     SELECT data2.*, data.${keyfield} AS ${keyfield}, data.___hash AS ___hash
     FROM data
