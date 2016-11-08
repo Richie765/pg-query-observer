@@ -80,9 +80,9 @@ Option | Description
 
 Parameter | Description
 --------- | -----------
-`query` | SELECT query to run and observe.
+`query` | SELECT query to run and observe. May contain placeholders following `pg-promise`
 `params` | The parameters to the query, following `pg-promise`. Single values will be `$1`. Array elements will be `$1`..`$n`. Object properties will be `$*property*` where `**` is one of `()`, `[]`, `{}` or `//`. See `pg-promise` for details.
-`triggers` | The triger function, see below.
+`triggers` | function(change). The trigger function, see below.
 `callback` | Callback function, see below.
 
 ## triggers function
