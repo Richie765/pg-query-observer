@@ -1,5 +1,7 @@
 # pg-query-observer
-Observe PostgreSQL query for changes
+Observe PostgreSQL query for changes.
+
+Requires PostgresSQL version 9.3 or above.
 
 # Usage
 ```javascript
@@ -91,8 +93,13 @@ You should determine if this change requires a rerun of the query. If so, you sh
 One parameter is passed, `change`. It contains the following fields:
 
 Field | Description
------ | -----------
-
+-------------- | -----------
+`table` | String, name of the table that changed. ***This will always be in lowercase.***
+`insert` | For INSERT, `true`
+`delete` | For DELETE, `true`
+`update` | For UPDATE, an object that contains the old and new values of each changed column. If a column `score` changed from 10 to 20, `change.update.score.from` would be 10 and `change.update.score.to` would be 20.
+`row` | The row values, for UPDATE, the NEW row values
+`old` | For UPDATE, the OLD row values
 
 ## callback function
 
@@ -109,13 +116,13 @@ Field | Description
 
 ## return value
 
-On success, returns an object as follows.
+On success, returns an object with the following fields.
 
-`async handle.stop()`. Call to stop the observer.
-
-`async handle.refresh()`. Call to refresh the query.
-
-`handle.getRows()`. Get current full set of rows.
+Field | Description
+----- | -----------
+`async stop()` | async function(). Call to stop the observer.
+`async refresh()` | async function(). Call to refresh the query.
+`getRows()` | Get current full set of rows.
 
 # async cleanup()
 
