@@ -1,6 +1,6 @@
 {
   "name": "pg-query-observer",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Observe PostgreSQL queries for changes",
   "main": "dist/PgQueryObserver.js",
   "dependencies": {
