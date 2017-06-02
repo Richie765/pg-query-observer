@@ -33,7 +33,7 @@ async function start() {
     let params = [];
 
     function triggers(change) {
-      console.log("triggers", change);
+      console.log('triggers', change);
       return true;
     }
 
@@ -41,7 +41,7 @@ async function start() {
       console.log(diff);
     });
 
-    console.log("initial rows", handle.rows);
+    console.log('initial rows', handle.getRows());
 
     // ... when finished observing the query
 
