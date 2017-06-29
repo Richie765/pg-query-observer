@@ -8,9 +8,9 @@
     "lodash": "^4.17.4",
     "murmurhash-js": "^1.0.0",
     "pg-analyze": "^1.0.3",
-    "pg-promise": "^6.2.0",
-    "pg-table-observer": "^1.0.5",
-    "rows-diff": "^1.0.2",
+    "pg-promise": "^6.2.1",
+    "pg-table-observer": "^1.0.7",
+    "rows-diff": "^1.0.3",
     "source-map-support": "^0.4.15"
   },
   "devDependencies": {
